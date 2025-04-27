@@ -1,0 +1,158 @@
+services:
+
+  api-gateway:
+    build: ./api-gateway
+    container_name: api-gateway
+    ports:
+      - "8090:8090"
+    environment:
+      - eureka.client.service-url.defaultZone=http://eurekaserver:8761/eureka/
+      - LOGSTASH_HOST=logstash:5000   
+    depends_on:
+      - eurekaserver
+    networks:
+      - microservices-net
+
+  employee-service:
+    build: ./employee-service
+    container_name: employee-service
+    ports:
+      - "8094:8094"
+    environment:
+      - spring.datasource.url=jdbc:mysql://mysql:3306/dbuts_employee?useSSL=false&serverTimezone=UTC
+      - spring.datasource.username=root
+      - spring.datasource.password=root_password
+      - eureka.client.service-url.defaultZone=http://eurekaserver:8761/eureka/
+      - LOGSTASH_HOST=logstash:5000   
+    depends_on:
+      - eurekaserver
+      - mysql
+    networks:
+      - microservices-net
+
+  task-service:
+    build: ./task-service
+    container_name: task-service
+    ports:
+      - "8095:8095"
+    environment:
+      - spring.datasource.url=jdbc:mysql://mysql:3306/dbuts_task?useSSL=false&serverTimezone=UTC&allowPublicKeyRetrieval=true
+      - spring.datasource.username=root
+      - spring.datasource.password=root_password
+      - eureka.client.service-url.defaultZone=http://eurekaserver:8761/eureka/
+      - LOGSTASH_HOST=logstash:5000   
+    depends_on:
+      - eurekaserver
+      - mysql
+    networks:
+      - microservices-net
+
+  attendance-service:
+    build: ./attendance-service
+    container_name: attendance-service
+    ports:
+      - "8096:8096"
+    environment:
+      - spring.datasource.url=jdbc:mysql://mysql:3306/dbuts_attendance?useSSL=false&serverTimezone=UTC
+      - spring.datasource.username=root
+      - spring.datasource.password=root_password
+      - eureka.client.service-url.defaultZone=http://eurekaserver:8761/eureka/
+      - LOGSTASH_HOST=logstash:5000   
+    depends_on:
+      - eurekaserver
+      - mysql
+    networks:
+      - microservices-net
+
+  eurekaserver:
+    build: ./eurekaserver
+    container_name: eurekaserver
+    ports:
+      - "8761:8761"
+    networks:
+      - microservices-net
+
+  mysql:
+    image: mysql:8.0
+    container_name: mysql
+    environment:
+      MYSQL_ROOT_PASSWORD: root_password
+    volumes:
+      - ./mysql/init:/docker-entrypoint-initdb.d
+    ports:
+      - "3306:3306"
+    networks:
+      - microservices-net
+
+  phpmyadmin:
+    image: phpmyadmin/phpmyadmin
+    container_name: phpmyadmin
+    environment:
+      PMA_HOST: mysql
+      PMA_PORT: 3306
+      PMA_USER: root
+      PMA_PASSWORD: root_password
+    ports:
+      - "8085:80"
+    networks:
+      - microservices-net
+    depends_on:
+      - mysql
+
+  prometheus:
+    image: prom/prometheus
+    container_name: prometheus
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml
+    networks:
+      - microservices-net
+
+  elasticsearch:
+    image: docker.elastic.co/elasticsearch/elasticsearch:8.12.0
+    container_name: elasticsearch
+    environment:
+      - discovery.type=single-node
+      - xpack.security.enabled=false
+      - bootstrap.memory_lock=true
+      - "ES_JAVA_OPTS=-Xms512m -Xmx512m"
+    ports:
+      - "9200:9200"
+    volumes:
+      - esdata:/usr/share/elasticsearch/data
+    networks:
+      - microservices-net
+
+  logstash:
+    image: docker.elastic.co/logstash/logstash:8.12.0
+    container_name: logstash
+    depends_on:
+      - elasticsearch
+    ports:
+      - "5044:5044"
+      - "5000:5000"
+      - "9600:9600"
+    volumes:
+      - ./logstash/pipeline:/usr/share/logstash/pipeline
+    networks:
+      - microservices-net
+
+  kibana:
+    image: docker.elastic.co/kibana/kibana:7.17.10
+    container_name: kibana
+    ports:
+      - "5601:5601"
+    environment:
+      - ELASTICSEARCH_HOSTS=http://elasticsearch:9200
+    depends_on:
+      - elasticsearch
+    networks:
+      - microservices-net
+
+networks:
+  microservices-net:
+    driver: bridge
+
+volumes:
+  esdata:
